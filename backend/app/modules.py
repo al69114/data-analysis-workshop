@@ -1,0 +1,648 @@
+from app.models import ModuleDefinition, ModuleOption, ModuleOptionChoice, PresetUseCase, ProjectBlock
+
+
+MODULES: list[ModuleDefinition] = [
+    # ------------------- PANDAS / DATA -------------------
+    ModuleDefinition(
+        id="pandas-load-csv",
+        title="Load Dataset",
+        package="Pandas",
+        category="data",
+        description="Load tabular data from a CSV file into a pandas DataFrame.",
+        learner_goal="Start your workflow by ingesting rows and columns into Python memory.",
+        badge="Foundation",
+        options=[
+            ModuleOption(
+                key="file_name",
+                label="Dataset Source",
+                default="sales_marketing.csv",
+                help_text="Choose a workshop sample dataset or enter a CSV filename.",
+                type="select",
+                choices=[
+                    ModuleOptionChoice(value="sales_marketing.csv", label="📈 Sales & Marketing Spend (Regression / EDA)"),
+                    ModuleOptionChoice(value="customer_churn.csv", label="🎯 Customer Churn & Retention (Classification)"),
+                    ModuleOptionChoice(value="housing_prices.csv", label="🏡 Real Estate & Housing Prices (Regression / Multi-feature)"),
+                    ModuleOptionChoice(value="sales.csv", label="📊 Basic Sales Records"),
+                ],
+            ),
+            ModuleOption(
+                key="preview_rows",
+                label="Preview Rows",
+                default=5,
+                help_text="Number of initial rows to display in the data table.",
+                type="number",
+            ),
+        ],
+    ),
+    ModuleDefinition(
+        id="pandas-clean",
+        title="Clean Missing Values",
+        package="Pandas",
+        category="data",
+        description="Handle missing or incomplete rows to prevent model errors.",
+        learner_goal="Clean data before statistical analysis and model fitting.",
+        badge="Data Prep",
+        options=[
+            ModuleOption(
+                key="strategy",
+                label="Handling Strategy",
+                default="drop_rows",
+                help_text="Choose how to resolve rows containing null or NaN values.",
+                type="select",
+                choices=[
+                    ModuleOptionChoice(value="drop_rows", label="Drop rows with any missing values"),
+                    ModuleOptionChoice(value="fill_mean", label="Impute missing numeric values with column Mean"),
+                    ModuleOptionChoice(value="fill_median", label="Impute missing numeric values with column Median"),
+                ],
+            )
+        ],
+    ),
+    ModuleDefinition(
+        id="pandas-filter",
+        title="Filter & Slice Rows",
+        package="Pandas",
+        category="data",
+        description="Filter DataFrame records matching specific threshold conditions.",
+        learner_goal="Isolate subsets of data (e.g. high-value transactions or active users).",
+        badge="Data Prep",
+        options=[
+            ModuleOption(
+                key="column",
+                label="Filter Column",
+                default="sales",
+                help_text="Column name to evaluate for row filtering.",
+                type="text",
+            ),
+            ModuleOption(
+                key="operator",
+                label="Condition",
+                default=">",
+                help_text="Comparison operator to test against threshold.",
+                type="select",
+                choices=[
+                    ModuleOptionChoice(value=">", label="Greater than (>)"),
+                    ModuleOptionChoice(value=">=", label="Greater than or equal (>=)"),
+                    ModuleOptionChoice(value="<", label="Less than (<)"),
+                    ModuleOptionChoice(value="<=", label="Less than or equal (<=)"),
+                    ModuleOptionChoice(value="==", label="Equals (==)"),
+                    ModuleOptionChoice(value="!=", label="Not equals (!=)"),
+                ],
+            ),
+            ModuleOption(
+                key="threshold",
+                label="Threshold Value",
+                default="50000",
+                help_text="Value to compare against in the condition.",
+                type="text",
+            ),
+        ],
+    ),
+    ModuleDefinition(
+        id="pandas-groupby",
+        title="Group By & Aggregate",
+        package="Pandas",
+        category="data",
+        description="Group rows by a categorical column and compute aggregate metrics.",
+        learner_goal="Understand categorical summaries and pivot data for plotting.",
+        badge="Aggregation",
+        options=[
+            ModuleOption(
+                key="group_column",
+                label="Group By Column",
+                default="region",
+                help_text="Categorical column to group records by.",
+                type="text",
+            ),
+            ModuleOption(
+                key="agg_column",
+                label="Target Numeric Column",
+                default="sales",
+                help_text="Numeric column to compute aggregation on.",
+                type="text",
+            ),
+            ModuleOption(
+                key="agg_func",
+                label="Aggregation Function",
+                default="mean",
+                help_text="Statistical operation to apply to each group.",
+                type="select",
+                choices=[
+                    ModuleOptionChoice(value="mean", label="Average / Mean"),
+                    ModuleOptionChoice(value="sum", label="Total Sum"),
+                    ModuleOptionChoice(value="count", label="Row Count"),
+                    ModuleOptionChoice(value="median", label="Median"),
+                    ModuleOptionChoice(value="max", label="Maximum"),
+                    ModuleOptionChoice(value="min", label="Minimum"),
+                ],
+            ),
+        ],
+    ),
+
+    # ------------------- NUMPY / SCIENCE -------------------
+    ModuleDefinition(
+        id="numpy-summary",
+        title="Numeric Summary & Stats",
+        package="NumPy",
+        category="science",
+        description="Compute descriptive summary statistics (mean, median, std, percentiles) via NumPy arrays.",
+        learner_goal="Learn foundational statistics and understand data dispersion.",
+        badge="Statistics",
+        options=[
+            ModuleOption(
+                key="column",
+                label="Numeric Column",
+                default="sales",
+                help_text="The numeric column to compute statistics for.",
+                type="text",
+            ),
+        ],
+    ),
+    ModuleDefinition(
+        id="numpy-transform",
+        title="Feature Transform & Scale",
+        package="NumPy",
+        category="science",
+        description="Transform numeric arrays using log transform, z-score normalization, or min-max scaling.",
+        learner_goal="Prepare features for machine learning models that expect standardized inputs.",
+        badge="Transformation",
+        options=[
+            ModuleOption(
+                key="column",
+                label="Source Column",
+                default="marketing_spend",
+                help_text="Column to transform.",
+                type="text",
+            ),
+            ModuleOption(
+                key="transform_type",
+                label="Transformation Type",
+                default="z_score",
+                help_text="Mathematical transformation method.",
+                type="select",
+                choices=[
+                    ModuleOptionChoice(value="z_score", label="Z-Score Standardization (mean=0, std=1)"),
+                    ModuleOptionChoice(value="log", label="Logarithmic Transform (np.log1p)"),
+                    ModuleOptionChoice(value="min_max", label="Min-Max Scaling (0.0 to 1.0)"),
+                ],
+            ),
+        ],
+    ),
+
+    # ------------------- MATPLOTLIB / VISUALIZATION -------------------
+    ModuleDefinition(
+        id="matplotlib-scatter-plot",
+        title="Scatter Plot & Trendline",
+        package="Matplotlib",
+        category="visualization",
+        description="Plot two continuous variables with an optional linear regression fit line.",
+        learner_goal="Visually identify correlation, outliers, and linear trends between variables.",
+        badge="Visual Discovery",
+        options=[
+            ModuleOption(
+                key="x_column",
+                label="X-Axis (Feature)",
+                default="marketing_spend",
+                help_text="Independent variable on horizontal axis.",
+                type="text",
+            ),
+            ModuleOption(
+                key="y_column",
+                label="Y-Axis (Target / Outcome)",
+                default="sales",
+                help_text="Dependent variable on vertical axis.",
+                type="text",
+            ),
+            ModuleOption(
+                key="title",
+                label="Chart Title",
+                default="Marketing Spend vs. Sales Revenue",
+                help_text="Main heading for the plot.",
+                type="text",
+            ),
+            ModuleOption(
+                key="show_trendline",
+                label="Show Regression Trendline",
+                default="yes",
+                help_text="Draw a fitted best-fit line through the scatter points.",
+                type="select",
+                choices=[
+                    ModuleOptionChoice(value="yes", label="Yes - Show Best Fit Trendline"),
+                    ModuleOptionChoice(value="no", label="No - Points Only"),
+                ],
+            ),
+        ],
+    ),
+    ModuleDefinition(
+        id="matplotlib-bar-chart",
+        title="Bar Chart",
+        package="Matplotlib",
+        category="visualization",
+        description="Compare aggregate values across categories with styled bar charts.",
+        learner_goal="Communicate categorical differences effectively to stakeholders.",
+        badge="Visual Discovery",
+        options=[
+            ModuleOption(
+                key="category_column",
+                label="Category Column (X)",
+                default="region",
+                help_text="The category labels for the bars.",
+                type="text",
+            ),
+            ModuleOption(
+                key="value_column",
+                label="Metric Column (Y)",
+                default="sales",
+                help_text="The values to measure and compare.",
+                type="text",
+            ),
+            ModuleOption(
+                key="title",
+                label="Chart Title",
+                default="Total Sales by Region",
+                help_text="Title shown at top of the chart.",
+                type="text",
+            ),
+        ],
+    ),
+    ModuleDefinition(
+        id="matplotlib-histogram",
+        title="Histogram & Distribution",
+        package="Matplotlib",
+        category="visualization",
+        description="Visualize frequency distribution and skewness of a numeric feature.",
+        learner_goal="Check data normality, skew, and spread before applying ML models.",
+        badge="Visual Discovery",
+        options=[
+            ModuleOption(
+                key="column",
+                label="Numeric Column",
+                default="sales",
+                help_text="Column to plot distribution for.",
+                type="text",
+            ),
+            ModuleOption(
+                key="bins",
+                label="Number of Bins",
+                default=10,
+                help_text="Number of histogram intervals.",
+                type="number",
+            ),
+            ModuleOption(
+                key="title",
+                label="Chart Title",
+                default="Distribution of Sales",
+                help_text="Chart title.",
+                type="text",
+            ),
+        ],
+    ),
+    ModuleDefinition(
+        id="matplotlib-line-chart",
+        title="Line Trend Chart",
+        package="Matplotlib",
+        category="visualization",
+        description="Plot sequential data or index progression with connected lines and markers.",
+        learner_goal="Observe changes, trends, or trajectory across ordered observations.",
+        badge="Visual Discovery",
+        options=[
+            ModuleOption(
+                key="x_column",
+                label="X-Axis Column",
+                default="store_footfall",
+                help_text="Order or horizontal metric.",
+                type="text",
+            ),
+            ModuleOption(
+                key="y_column",
+                label="Y-Axis Column",
+                default="sales",
+                help_text="Metric to plot along vertical axis.",
+                type="text",
+            ),
+            ModuleOption(
+                key="title",
+                label="Chart Title",
+                default="Sales Trend Across Footfall",
+                help_text="Chart title.",
+                type="text",
+            ),
+        ],
+    ),
+    ModuleDefinition(
+        id="matplotlib-correlation-heatmap",
+        title="Correlation Heatmap",
+        package="Matplotlib",
+        category="visualization",
+        description="Compute correlation coefficients between all numeric columns and display a color-coded matrix.",
+        learner_goal="Identify strong positive/negative relationships and select predictive features.",
+        badge="Feature Analysis",
+        options=[
+            ModuleOption(
+                key="title",
+                label="Heatmap Title",
+                default="Feature Correlation Matrix",
+                help_text="Title for the correlation matrix plot.",
+                type="text",
+            ),
+        ],
+    ),
+
+    # ------------------- SCIKIT-LEARN / MACHINE LEARNING -------------------
+    ModuleDefinition(
+        id="sklearn-regression",
+        title="Linear Regression Model",
+        package="Scikit-learn",
+        category="machine-learning",
+        description="Train a supervised Linear Regression model, perform train/test split, and evaluate R² and MSE.",
+        learner_goal="Learn predictive modeling, feature-to-target mapping, and evaluation metrics.",
+        badge="Predictive ML",
+        options=[
+            ModuleOption(
+                key="feature_column",
+                label="Feature Column (X)",
+                default="marketing_spend",
+                help_text="Input variable used to make predictions.",
+                type="text",
+            ),
+            ModuleOption(
+                key="target_column",
+                label="Target Column (y)",
+                default="sales",
+                help_text="Continuous outcome variable to predict.",
+                type="text",
+            ),
+            ModuleOption(
+                key="test_size",
+                label="Test Split Ratio (0.1 - 0.5)",
+                default=0.2,
+                help_text="Fraction of data reserved for testing model accuracy.",
+                type="number",
+            ),
+        ],
+    ),
+    ModuleDefinition(
+        id="sklearn-classification",
+        title="Decision Tree Classifier",
+        package="Scikit-learn",
+        category="machine-learning",
+        description="Train a Decision Tree Classifier to predict categorical outcomes and visualize the Confusion Matrix.",
+        learner_goal="Understand classification, decision rules, accuracy, precision, and confusion matrices.",
+        badge="Classification ML",
+        options=[
+            ModuleOption(
+                key="feature_columns",
+                label="Feature Columns (comma-separated)",
+                default="tenure_months, monthly_charges, support_tickets",
+                help_text="Numeric input features for classification.",
+                type="text",
+            ),
+            ModuleOption(
+                key="target_column",
+                label="Target Class Column (y)",
+                default="churned",
+                help_text="Binary or multi-class label column to predict.",
+                type="text",
+            ),
+            ModuleOption(
+                key="max_depth",
+                label="Tree Max Depth",
+                default=3,
+                help_text="Maximum depth of the decision tree to prevent overfitting.",
+                type="number",
+            ),
+        ],
+    ),
+    ModuleDefinition(
+        id="sklearn-clustering",
+        title="K-Means Clustering",
+        package="Scikit-learn",
+        category="machine-learning",
+        description="Group unlabeled data into K distinct clusters using Euclidean distance and centroid discovery.",
+        learner_goal="Explore unsupervised learning, customer segmentation, and cluster centroids.",
+        badge="Unsupervised ML",
+        options=[
+            ModuleOption(
+                key="feature_x",
+                label="First Feature (X)",
+                default="marketing_spend",
+                help_text="First dimension for clustering.",
+                type="text",
+            ),
+            ModuleOption(
+                key="feature_y",
+                label="Second Feature (Y)",
+                default="store_footfall",
+                help_text="Second dimension for clustering.",
+                type="text",
+            ),
+            ModuleOption(
+                key="n_clusters",
+                label="Number of Clusters (K)",
+                default=3,
+                help_text="How many distinct groups to segment data into.",
+                type="number",
+            ),
+        ],
+    ),
+]
+
+
+MODULE_BY_ID = {module.id: module for module in MODULES}
+
+
+PRESET_USE_CASES: list[PresetUseCase] = [
+    PresetUseCase(
+        id="sales-roi-regression",
+        title="Sales & Marketing ROI Predictor",
+        subtitle="Predict revenue from advertising spend with Linear Regression & Matplotlib",
+        description="Explore how marketing spend and footfall drive revenue. Clean the data, compute summary statistics, plot the scatter correlation with a trendline, train a Scikit-Learn Linear Regression model, and visualize regional totals.",
+        category="Regression & ROI Analysis",
+        icon="TrendingUp",
+        difficulty="Beginner",
+        key_takeaway="Understand feature vs target relationships, R² goodness-of-fit, and interpreting regression slopes.",
+        blocks=[
+            ProjectBlock(
+                id="block-sales-1",
+                module_id="pandas-load-csv",
+                settings={"file_name": "sales_marketing.csv", "preview_rows": 5},
+            ),
+            ProjectBlock(
+                id="block-sales-2",
+                module_id="pandas-clean",
+                settings={"strategy": "drop_rows"},
+            ),
+            ProjectBlock(
+                id="block-sales-3",
+                module_id="numpy-summary",
+                settings={"column": "sales"},
+            ),
+            ProjectBlock(
+                id="block-sales-4",
+                module_id="matplotlib-scatter-plot",
+                settings={
+                    "x_column": "marketing_spend",
+                    "y_column": "sales",
+                    "title": "Marketing Spend vs. Sales Revenue (With Trendline)",
+                    "show_trendline": "yes",
+                },
+            ),
+            ProjectBlock(
+                id="block-sales-5",
+                module_id="sklearn-regression",
+                settings={
+                    "feature_column": "marketing_spend",
+                    "target_column": "sales",
+                    "test_size": 0.2,
+                },
+            ),
+            ProjectBlock(
+                id="block-sales-6",
+                module_id="matplotlib-bar-chart",
+                settings={
+                    "category_column": "region",
+                    "value_column": "sales",
+                    "title": "Total Revenue by Region",
+                },
+            ),
+        ],
+    ),
+    PresetUseCase(
+        id="customer-churn-classification",
+        title="Customer Churn & Risk Classifier",
+        subtitle="Classify customer retention using Scikit-Learn Decision Trees & Confusion Matrix",
+        description="Analyze subscription data to detect churn risk factors. Group monthly charges by contract type, train a Decision Tree Classifier on tenure and support tickets, and evaluate the Confusion Matrix.",
+        category="Classification & Retention",
+        icon="BrainCircuit",
+        difficulty="Intermediate",
+        key_takeaway="Master classification metrics (Accuracy, Precision, Recall) and error analysis using Confusion Matrices.",
+        blocks=[
+            ProjectBlock(
+                id="block-churn-1",
+                module_id="pandas-load-csv",
+                settings={"file_name": "customer_churn.csv", "preview_rows": 5},
+            ),
+            ProjectBlock(
+                id="block-churn-2",
+                module_id="pandas-groupby",
+                settings={
+                    "group_column": "contract_type",
+                    "agg_column": "monthly_charges",
+                    "agg_func": "mean",
+                },
+            ),
+            ProjectBlock(
+                id="block-churn-3",
+                module_id="matplotlib-bar-chart",
+                settings={
+                    "category_column": "contract_type",
+                    "value_column": "monthly_charges",
+                    "title": "Average Monthly Charges by Contract Type",
+                },
+            ),
+            ProjectBlock(
+                id="block-churn-4",
+                module_id="matplotlib-histogram",
+                settings={
+                    "column": "tenure_months",
+                    "bins": 8,
+                    "title": "Distribution of Customer Tenure (Months)",
+                },
+            ),
+            ProjectBlock(
+                id="block-churn-5",
+                module_id="sklearn-classification",
+                settings={
+                    "feature_columns": "tenure_months, monthly_charges, support_tickets",
+                    "target_column": "churned",
+                    "max_depth": 3,
+                },
+            ),
+        ],
+    ),
+    PresetUseCase(
+        id="housing-price-eda",
+        title="Housing Price Valuation & Heatmap",
+        subtitle="Exploratory data analysis & multi-variable correlation for real estate",
+        description="Inspect housing features, compute statistical dispersion, generate a comprehensive correlation heatmap across square footage and ratings, and train a regression model to estimate market prices.",
+        category="EDA & Valuation",
+        icon="Building",
+        difficulty="Intermediate",
+        key_takeaway="Use correlation heatmaps to select the strongest predictors before feeding features to a regression model.",
+        blocks=[
+            ProjectBlock(
+                id="block-house-1",
+                module_id="pandas-load-csv",
+                settings={"file_name": "housing_prices.csv", "preview_rows": 5},
+            ),
+            ProjectBlock(
+                id="block-house-2",
+                module_id="numpy-summary",
+                settings={"column": "price"},
+            ),
+            ProjectBlock(
+                id="block-house-3",
+                module_id="matplotlib-correlation-heatmap",
+                settings={"title": "Housing Features Correlation Matrix"},
+            ),
+            ProjectBlock(
+                id="block-house-4",
+                module_id="matplotlib-scatter-plot",
+                settings={
+                    "x_column": "square_feet",
+                    "y_column": "price",
+                    "title": "Living Area (Sq Ft) vs. Sale Price",
+                    "show_trendline": "yes",
+                },
+            ),
+            ProjectBlock(
+                id="block-house-5",
+                module_id="sklearn-regression",
+                settings={
+                    "feature_column": "square_feet",
+                    "target_column": "price",
+                    "test_size": 0.2,
+                },
+            ),
+        ],
+    ),
+    PresetUseCase(
+        id="customer-segmentation-clustering",
+        title="Customer Segmentation via K-Means",
+        subtitle="Unsupervised customer clustering and centroid visualization",
+        description="Group retail customers into distinct behavioural clusters based on marketing spend and store footfall. Visualize discovered cluster centroids using 2D scatter plots.",
+        category="Unsupervised Clustering",
+        icon="Users",
+        difficulty="Advanced",
+        key_takeaway="Learn how unsupervised clustering discovers hidden customer segments without labeled target answers.",
+        blocks=[
+            ProjectBlock(
+                id="block-cluster-1",
+                module_id="pandas-load-csv",
+                settings={"file_name": "sales_marketing.csv", "preview_rows": 5},
+            ),
+            ProjectBlock(
+                id="block-cluster-2",
+                module_id="numpy-summary",
+                settings={"column": "store_footfall"},
+            ),
+            ProjectBlock(
+                id="block-cluster-3",
+                module_id="sklearn-clustering",
+                settings={
+                    "feature_x": "marketing_spend",
+                    "feature_y": "store_footfall",
+                    "n_clusters": 3,
+                },
+            ),
+            ProjectBlock(
+                id="block-cluster-4",
+                module_id="matplotlib-bar-chart",
+                settings={
+                    "category_column": "region",
+                    "value_column": "marketing_spend",
+                    "title": "Marketing Budget by Region",
+                },
+            ),
+        ],
+    ),
+]
