@@ -2,16 +2,20 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.codegen import generate_project_code
-from app.executor import execute_pipeline
+from app.executor import execute_custom_python_code, execute_pipeline
 from app.models import (
+    CustomCodeExecuteRequest,
+    CustomCodeExecuteResponse,
     ExecuteRequest,
     ExecuteResponse,
     GenerateRequest,
     GenerateResponse,
+    GuidedMission,
     ModuleDefinition,
     PresetUseCase,
+    WorkshopStep,
 )
-from app.modules import MODULES, PRESET_USE_CASES
+from app.modules import GUIDED_MISSIONS, MATPLOTLIB_WORKSHOP_STEPS, MODULES, PRESET_USE_CASES
 
 
 app = FastAPI(
@@ -44,6 +48,17 @@ def list_presets() -> list[PresetUseCase]:
     return PRESET_USE_CASES
 
 
+@app.get("/workshops/matplotlib", response_model=list[WorkshopStep])
+def list_matplotlib_workshop_steps() -> list[WorkshopStep]:
+    return MATPLOTLIB_WORKSHOP_STEPS
+
+
+@app.get("/guided-missions", response_model=list[GuidedMission])
+def list_guided_missions() -> list[GuidedMission]:
+    return GUIDED_MISSIONS
+
+
+
 @app.post("/generate", response_model=GenerateResponse)
 def generate_code(request: GenerateRequest) -> GenerateResponse:
     return generate_project_code(request)
@@ -52,3 +67,9 @@ def generate_code(request: GenerateRequest) -> GenerateResponse:
 @app.post("/execute", response_model=ExecuteResponse)
 def execute(request: ExecuteRequest) -> ExecuteResponse:
     return execute_pipeline(request)
+
+
+@app.post("/execute-code", response_model=CustomCodeExecuteResponse)
+def execute_code(request: CustomCodeExecuteRequest) -> CustomCodeExecuteResponse:
+    return execute_custom_python_code(request)
+

@@ -9,7 +9,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LinearRegression
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -19,11 +22,16 @@ from sklearn.metrics import (
     r2_score,
 )
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.cluster import KMeans
+
+import sys
+import traceback
 
 from app.models import (
     BlockExecutionResult,
+    CustomCodeExecuteRequest,
+    CustomCodeExecuteResponse,
     DataPreview,
     ExecuteRequest,
     ExecuteResponse,
@@ -1369,6 +1377,735 @@ def execute_pipeline(request: ExecuteRequest) -> ExecuteResponse:
                     )
                 )
 
+        # 15. MATPLOTLIB BOX PLOT
+        elif module_id == "matplotlib-box-plot":
+            if df is None:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="No dataset loaded.",
+                        error="Please add a Load Dataset block first.",
+                    )
+                )
+                continue
+
+            val_col = str(_get_setting(block, "value_column", "sales")).strip()
+            grp_col = str(_get_setting(block, "group_column", "region")).strip()
+            title = str(_get_setting(block, "title", f"Distribution Box Plot ({val_col})")).strip()
+
+            if val_col not in df.columns:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary=f"Column {val_col} not found.",
+                        error=f"Available columns: {', '.join(df.columns)}",
+                    )
+                )
+                continue
+
+            try:
+                fig, ax = plt.subplots(figsize=(7.5, 4.8), dpi=140)
+                if grp_col in df.columns and df[grp_col].nunique() > 1:
+                    groups = [group[val_col].dropna().values for _, group in df.groupby(grp_col)]
+                    labels = [str(name) for name, _ in df.groupby(grp_col)]
+                    bp = ax.boxplot(
+                        groups,
+                        tick_labels=labels,
+                        patch_artist=True,
+                        boxprops=dict(facecolor="#0f766e", color="#042f2e", alpha=0.75),
+                        medianprops=dict(color="#e11d48", linewidth=2),
+                        whiskerprops=dict(color="#042f2e", linewidth=1.2),
+                        capprops=dict(color="#042f2e", linewidth=1.2),
+                        flierprops=dict(marker="o", color="#e11d48", alpha=0.8, markersize=6),
+                    )
+                    ax.set_xlabel(grp_col)
+                else:
+                    vals = df[val_col].dropna().values
+                    bp = ax.boxplot(
+                        vals,
+                        tick_labels=[val_col],
+                        patch_artist=True,
+                        boxprops=dict(facecolor="#0f766e", color="#042f2e", alpha=0.75),
+                        medianprops=dict(color="#e11d48", linewidth=2),
+                    )
+
+                ax.set_title(title, pad=12)
+                ax.set_ylabel(val_col)
+                ax.grid(axis="y", linestyle=":", alpha=0.6)
+                fig.tight_layout()
+
+                chart_b64 = _fig_to_base64(fig)
+                numeric_vals = pd.to_numeric(df[val_col], errors="coerce").dropna()
+                q25, q50, q75 = numeric_vals.quantile([0.25, 0.50, 0.75])
+                iqr = q75 - q25
+
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=True,
+                        summary=f"Rendered Box Plot for {val_col}. Median = {q50:.2f}, IQR = {iqr:.2f}.",
+                        chart_base64=chart_b64,
+                        metrics=[
+                            MetricItem(label="Median (50%)", value=round(q50, 2), status="good"),
+                            MetricItem(label="IQR (Q3 - Q1)", value=round(iqr, 2)),
+                            MetricItem(label="Lower / Upper Bound", value=f"{round(q25, 1)} / {round(q75, 1)}"),
+                        ],
+                    )
+                )
+            except Exception as e:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="Box plot generation failed.",
+                        error=str(e),
+                    )
+                )
+
+        # 16. MATPLOTLIB RESIDUALS PLOT
+        elif module_id == "matplotlib-residuals-plot":
+            if df is None:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="No dataset loaded.",
+                        error="Please add a Load Dataset block first.",
+                    )
+                )
+                continue
+
+            feat_col = str(_get_setting(block, "feature_column", "marketing_spend")).strip()
+            target_col = str(_get_setting(block, "target_column", "sales")).strip()
+            title = str(_get_setting(block, "title", "Residuals Diagnostics (Error vs Predicted)")).strip()
+
+            if feat_col not in df.columns or target_col not in df.columns:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary=f"Columns {feat_col} or {target_col} not found.",
+                        error=f"Available columns: {', '.join(df.columns)}",
+                    )
+                )
+                continue
+
+            try:
+                X = df[[feat_col]].copy().apply(pd.to_numeric, errors="coerce").fillna(0)
+                y = pd.to_numeric(df[target_col], errors="coerce").fillna(0)
+
+                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+                lr = LinearRegression().fit(X_train, y_train)
+                y_pred = lr.predict(X_test)
+                residuals = y_test.to_numpy() - y_pred
+
+                fig, ax = plt.subplots(figsize=(7.5, 4.8), dpi=140)
+                ax.scatter(y_pred, residuals, color="#e11d48", alpha=0.85, s=70, edgecolors="#9f1239", label="Error Residuals")
+                ax.axhline(0, color="#1e293b", linestyle="--", linewidth=1.8, label="Zero-Error Line")
+
+                ax.set_title(title, pad=12)
+                ax.set_xlabel(f"Fitted / Predicted {target_col}")
+                ax.set_ylabel(f"Residuals (Actual - Predicted)")
+                ax.grid(True, linestyle=":", alpha=0.6)
+                ax.legend(frameon=True)
+                fig.tight_layout()
+
+                chart_b64 = _fig_to_base64(fig)
+                mae_res = float(np.mean(np.abs(residuals)))
+
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=True,
+                        summary=f"Evaluated linear residuals for {target_col}. Mean Absolute Residual = {mae_res:.2f}.",
+                        chart_base64=chart_b64,
+                        metrics=[
+                            MetricItem(label="Mean Error (Residual)", value=round(float(np.mean(residuals)), 2), description="Should be close to 0", status="good"),
+                            MetricItem(label="Mean Absolute Residual", value=round(mae_res, 2)),
+                            MetricItem(label="Max Residual Deviation", value=round(float(np.max(np.abs(residuals))), 2)),
+                        ],
+                    )
+                )
+            except Exception as e:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="Residuals plot generation failed.",
+                        error=str(e),
+                    )
+                )
+
+        # 17. MATPLOTLIB 2x2 SUBPLOTS DASHBOARD
+        elif module_id == "matplotlib-subplots-grid":
+            if df is None:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="No dataset loaded.",
+                        error="Please add a Load Dataset block first.",
+                    )
+                )
+                continue
+
+            title = str(_get_setting(block, "title", "Executive Performance Dashboard")).strip()
+            try:
+                fig, axes = plt.subplots(2, 2, figsize=(11.5, 8), dpi=140)
+                fig.suptitle(title, fontsize=14, fontweight="bold", y=0.98)
+
+                # Panel 1: Histogram
+                if "sales" in df.columns:
+                    axes[0, 0].hist(df["sales"].dropna(), bins=8, color="#0f766e", edgecolor="#042f2e", alpha=0.8, rwidth=0.88)
+                    axes[0, 0].set_title("1. Sales Distribution", fontsize=10, fontweight="bold")
+                    axes[0, 0].grid(axis="y", linestyle=":", alpha=0.5)
+
+                # Panel 2: Scatter & Fit
+                if "marketing_spend" in df.columns and "sales" in df.columns:
+                    x, y = df["marketing_spend"], df["sales"]
+                    axes[0, 1].scatter(x, y, color="#0284c7", alpha=0.8, s=45)
+                    slope, intercept = np.polyfit(x, y, 1)
+                    x_span = np.linspace(x.min(), x.max(), 50)
+                    axes[0, 1].plot(x_span, slope * x_span + intercept, color="#e11d48", linestyle="--", label=f"Slope {slope:.2f}")
+                    axes[0, 1].set_title("2. Marketing ROI", fontsize=10, fontweight="bold")
+                    axes[0, 1].legend(fontsize=8)
+                    axes[0, 1].grid(True, linestyle=":", alpha=0.5)
+
+                # Panel 3: Categorical
+                if "region" in df.columns and "sales" in df.columns:
+                    reg = df.groupby("region")["sales"].sum() / 1000
+                    axes[1, 0].bar(reg.index, reg.values, color="#6366f1", edgecolor="#312e81", width=0.55)
+                    axes[1, 0].set_title("3. Regional Revenue ($K)", fontsize=10, fontweight="bold")
+                    axes[1, 0].grid(axis="y", linestyle=":", alpha=0.5)
+
+                # Panel 4: Footfall
+                if "store_footfall" in df.columns and "sales" in df.columns:
+                    axes[1, 1].scatter(df["store_footfall"], df["sales"], color="#10b981", alpha=0.85, s=45)
+                    axes[1, 1].set_title("4. Store Footfall vs Sales", fontsize=10, fontweight="bold")
+                    axes[1, 1].grid(True, linestyle=":", alpha=0.5)
+
+                fig.tight_layout(rect=[0, 0, 1, 0.96])
+                chart_b64 = _fig_to_base64(fig)
+
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=True,
+                        summary="Rendered unified 2x2 executive multi-panel dashboard graphic.",
+                        chart_base64=chart_b64,
+                        metrics=[
+                            MetricItem(label="Panels Rendered", value="4 (2x2 Grid)", status="good"),
+                            MetricItem(label="Master Theme", value="Accessible Seaborn Grid"),
+                        ],
+                    )
+                )
+            except Exception as e:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="Subplots dashboard failed.",
+                        error=str(e),
+                    )
+                )
+
+        # 18. SKLEARN STANDARD SCALER
+        elif module_id == "sklearn-scaler":
+            if df is None:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="No dataset loaded.",
+                        error="Please add a Load Dataset block first.",
+                    )
+                )
+                continue
+
+            feat_raw = str(_get_setting(block, "feature_columns", "marketing_spend, store_footfall")).strip()
+            feat_cols = [c.strip() for c in feat_raw.split(",") if c.strip() and c.strip() in df.columns]
+
+            if not feat_cols:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="No valid numeric columns found to scale.",
+                        error=f"Available columns: {', '.join(df.columns)}",
+                    )
+                )
+                continue
+
+            try:
+                scaler = StandardScaler()
+                scaled_mat = scaler.fit_transform(df[feat_cols].fillna(0))
+                for idx_c, col_name in enumerate(feat_cols):
+                    df[f"{col_name}_scaled"] = scaled_mat[:, idx_c]
+
+                preview = _make_data_preview(df, 5)
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=True,
+                        summary=f"Standardized {len(feat_cols)} features with zero mean and unit variance.",
+                        data_preview=preview,
+                        metrics=[
+                            MetricItem(label="Scaled Features", value=len(feat_cols), status="good"),
+                            MetricItem(label="Target Mean", value="0.00"),
+                            MetricItem(label="Target Std Dev", value="1.00"),
+                        ],
+                    )
+                )
+            except Exception as e:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="StandardScaler failed.",
+                        error=str(e),
+                    )
+                )
+
+        # 19. SKLEARN RANDOM FOREST REGRESSOR
+        elif module_id == "sklearn-random-forest-regressor":
+            if df is None:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="No dataset loaded.",
+                        error="Please add a Load Dataset block first.",
+                    )
+                )
+                continue
+
+            feat_raw = str(_get_setting(block, "feature_columns", "marketing_spend, store_footfall")).strip()
+            target_col = str(_get_setting(block, "target_column", "sales")).strip()
+            n_est = int(_get_setting(block, "n_estimators", 50))
+            max_d = int(_get_setting(block, "max_depth", 4))
+            feat_cols = [c.strip() for c in feat_raw.split(",") if c.strip()]
+
+            if target_col not in df.columns or not any(f in df.columns for f in feat_cols):
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="Features or target column not found.",
+                        error=f"Available columns: {', '.join(df.columns)}",
+                    )
+                )
+                continue
+
+            try:
+                valid_feats = [f for f in feat_cols if f in df.columns]
+                X = df[valid_feats].apply(pd.to_numeric, errors="coerce").fillna(0)
+                y = pd.to_numeric(df[target_col], errors="coerce").fillna(0)
+
+                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+                rf = RandomForestRegressor(n_estimators=n_est, max_depth=max_d, random_state=42)
+                rf.fit(X_train, y_train)
+
+                y_pred = rf.predict(X_test)
+                r2 = float(r2_score(y_test, y_pred))
+                mae = float(mean_absolute_error(y_test, y_pred))
+
+                # Feature importances chart
+                fig, ax = plt.subplots(figsize=(7, 4.2), dpi=140)
+                ax.barh(valid_feats, rf.feature_importances_, color="#0f766e", edgecolor="#042f2e", height=0.5)
+                ax.set_title(f"Random Forest Feature Importances (R² = {r2:.3f})", pad=12)
+                ax.set_xlabel("Relative Importance Ratio")
+                ax.grid(axis="x", linestyle=":", alpha=0.6)
+                fig.tight_layout()
+
+                chart_b64 = _fig_to_base64(fig)
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=True,
+                        summary=f"Trained Random Forest ({n_est} trees). Test R² = {r2:.3f}, MAE = {mae:.2f}.",
+                        chart_base64=chart_b64,
+                        metrics=[
+                            MetricItem(label="R² Score", value=round(r2, 4), status="good" if r2 > 0.75 else "neutral"),
+                            MetricItem(label="MAE", value=round(mae, 2)),
+                            MetricItem(label="Forest Estimators", value=n_est),
+                        ],
+                    )
+                )
+            except Exception as e:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="Random Forest Regressor failed.",
+                        error=str(e),
+                    )
+                )
+
+        # 20. SKLEARN RANDOM FOREST CLASSIFIER
+        elif module_id == "sklearn-random-forest-classifier":
+            if df is None:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="No dataset loaded.",
+                        error="Please add a Load Dataset block first.",
+                    )
+                )
+                continue
+
+            feat_raw = str(_get_setting(block, "feature_columns", "tenure_months, monthly_charges, support_tickets")).strip()
+            target_col = str(_get_setting(block, "target_column", "churned")).strip()
+            n_est = int(_get_setting(block, "n_estimators", 50))
+            max_d = int(_get_setting(block, "max_depth", 4))
+            feat_cols = [c.strip() for c in feat_raw.split(",") if c.strip()]
+
+            if target_col not in df.columns:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary=f"Target column {target_col} not found.",
+                        error=f"Available columns: {', '.join(df.columns)}",
+                    )
+                )
+                continue
+
+            try:
+                valid_feats = [f for f in feat_cols if f in df.columns]
+                X = df[valid_feats].apply(pd.to_numeric, errors="coerce").fillna(0)
+                y_raw = df[target_col].astype(str)
+                classes = sorted(y_raw.unique())
+                class_to_idx = {c: i for i, c in enumerate(classes)}
+                y = y_raw.map(class_to_idx)
+
+                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+                rf_clf = RandomForestClassifier(n_estimators=n_est, max_depth=max_d, random_state=42)
+                rf_clf.fit(X_train, y_train)
+
+                y_pred = rf_clf.predict(X_test)
+                accuracy = float(accuracy_score(y_test, y_pred))
+                f1 = float(f1_score(y_test, y_pred, average="weighted", zero_division=0))
+
+                # Confusion Matrix
+                cm = confusion_matrix(y_test, y_pred)
+                fig, ax = plt.subplots(figsize=(6, 4.5), dpi=140)
+                cax = ax.matshow(cm, cmap="Blues")
+                fig.colorbar(cax)
+
+                ax.set_xticks(range(len(classes)))
+                ax.set_yticks(range(len(classes)))
+                ax.set_xticklabels(classes, fontweight="bold")
+                ax.set_yticklabels(classes, fontweight="bold")
+                for i in range(len(classes)):
+                    for j in range(len(classes)):
+                        ax.text(j, i, str(cm[i, j]), ha="center", va="center", color="white" if cm[i, j] > cm.max()/2 else "black", fontweight="bold")
+                ax.set_title(f"Random Forest Confusion Matrix ({accuracy*100:.1f}% Acc)", pad=24)
+                fig.tight_layout()
+                chart_b64 = _fig_to_base64(fig)
+
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=True,
+                        summary=f"Trained Random Forest Classifier ({n_est} trees). Accuracy = {accuracy*100:.1f}%, F1 = {f1:.3f}.",
+                        chart_base64=chart_b64,
+                        metrics=[
+                            MetricItem(label="Accuracy", value=f"{accuracy*100:.1f}%", status="good"),
+                            MetricItem(label="Weighted F1", value=round(f1, 3)),
+                            MetricItem(label="Forest Trees", value=n_est),
+                        ],
+                    )
+                )
+            except Exception as e:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="Random Forest Classifier failed.",
+                        error=str(e),
+                    )
+                )
+
+        # 21. SKLEARN LOGISTIC REGRESSION
+        elif module_id == "sklearn-logistic-regression":
+            if df is None:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="No dataset loaded.",
+                        error="Please add a Load Dataset block first.",
+                    )
+                )
+                continue
+
+            feat_raw = str(_get_setting(block, "feature_columns", "tenure_months, monthly_charges, support_tickets")).strip()
+            target_col = str(_get_setting(block, "target_column", "churned")).strip()
+            c_val = float(_get_setting(block, "c_param", 1.0))
+            feat_cols = [c.strip() for c in feat_raw.split(",") if c.strip()]
+
+            if target_col not in df.columns:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary=f"Target column {target_col} not found.",
+                        error=f"Available columns: {', '.join(df.columns)}",
+                    )
+                )
+                continue
+
+            try:
+                valid_feats = [f for f in feat_cols if f in df.columns]
+                X = df[valid_feats].apply(pd.to_numeric, errors="coerce").fillna(0)
+                y_raw = df[target_col].astype(str)
+                classes = sorted(y_raw.unique())
+                class_to_idx = {c: i for i, c in enumerate(classes)}
+                y = y_raw.map(class_to_idx)
+
+                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+                lr_clf = LogisticRegression(C=c_val, max_iter=500)
+                lr_clf.fit(X_train, y_train)
+
+                y_pred = lr_clf.predict(X_test)
+                accuracy = float(accuracy_score(y_test, y_pred))
+                f1 = float(f1_score(y_test, y_pred, average="weighted", zero_division=0))
+
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=True,
+                        summary=f"Trained Logistic Regression (C={c_val}). Test Accuracy: {accuracy*100:.1f}%, F1: {f1:.3f}.",
+                        metrics=[
+                            MetricItem(label="Accuracy", value=f"{accuracy*100:.1f}%", status="good"),
+                            MetricItem(label="Weighted F1", value=round(f1, 3)),
+                            MetricItem(label="Regularization (C)", value=c_val),
+                        ],
+                    )
+                )
+            except Exception as e:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="Logistic Regression failed.",
+                        error=str(e),
+                    )
+                )
+
+        # 22. SKLEARN PCA
+        elif module_id == "sklearn-pca":
+            if df is None:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="No dataset loaded.",
+                        error="Please add a Load Dataset block first.",
+                    )
+                )
+                continue
+
+            feat_raw = str(_get_setting(block, "feature_columns", "square_feet, bedrooms, bathrooms, year_built, price")).strip()
+            color_by = str(_get_setting(block, "color_by", "region")).strip()
+            feat_cols = [c.strip() for c in feat_raw.split(",") if c.strip() and c.strip() in df.columns]
+
+            # If user dataset has different columns, fallback to all available numeric columns in df
+            if len(feat_cols) < 2:
+                num_cols = list(df.select_dtypes(include=[np.number]).columns)
+                if len(num_cols) >= 2:
+                    feat_cols = num_cols[:6]
+
+            if len(feat_cols) < 2:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="PCA requires at least 2 numeric features.",
+                        error=f"Available columns: {', '.join(df.columns)}",
+                    )
+                )
+                continue
+
+
+            try:
+                X_pca = df[feat_cols].select_dtypes(include=[np.number]).fillna(0)
+                X_scaled = StandardScaler().fit_transform(X_pca)
+                pca = PCA(n_components=2)
+                coords = pca.fit_transform(X_scaled)
+                var_exp = pca.explained_variance_ratio_
+
+                df["PC1"] = coords[:, 0]
+                df["PC2"] = coords[:, 1]
+
+                fig, ax = plt.subplots(figsize=(7.5, 4.8), dpi=140)
+                if color_by in df.columns and df[color_by].nunique() > 1:
+                    for grp_name, group in df.groupby(color_by):
+                        ax.scatter(group["PC1"], group["PC2"], label=str(grp_name), alpha=0.85, s=65)
+                    ax.legend(title=color_by)
+                else:
+                    ax.scatter(df["PC1"], df["PC2"], color="#0f766e", alpha=0.8, s=65)
+
+                ax.set_title(f"PCA 2D Projection ({var_exp.sum()*100:.1f}% Variance Explained)", pad=12)
+                ax.set_xlabel(f"Principal Component 1 ({var_exp[0]*100:.1f}% var)")
+                ax.set_ylabel(f"Principal Component 2 ({var_exp[1]*100:.1f}% var)")
+                ax.grid(True, linestyle=":", alpha=0.6)
+                fig.tight_layout()
+
+                chart_b64 = _fig_to_base64(fig)
+                preview = _make_data_preview(df, 5)
+
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=True,
+                        summary=f"Projected {len(feat_cols)} dimensions to 2D. Preserved variance: {var_exp.sum()*100:.1f}%.",
+                        chart_base64=chart_b64,
+                        data_preview=preview,
+                        metrics=[
+                            MetricItem(label="Total Variance Explained", value=f"{var_exp.sum()*100:.1f}%", status="good"),
+                            MetricItem(label="PC1 Variance", value=f"{var_exp[0]*100:.1f}%"),
+                            MetricItem(label="PC2 Variance", value=f"{var_exp[1]*100:.1f}%"),
+                        ],
+                    )
+                )
+            except Exception as e:
+                results.append(
+                    BlockExecutionResult(
+                        block_id=block.id,
+                        module_id=module_id,
+                        title=module.title,
+                        package=module.package,
+                        category=module.category,
+                        success=False,
+                        summary="PCA reduction failed.",
+                        error=str(e),
+                    )
+                )
+
     exec_time = (time.time() - start_time) * 1000.0
     summary_insight = " | ".join(overall_insights) if overall_insights else "Pipeline executed successfully."
 
@@ -1379,3 +2116,114 @@ def execute_pipeline(request: ExecuteRequest) -> ExecuteResponse:
         summary_insight=summary_insight,
         notes=notes,
     )
+
+
+def execute_custom_python_code(request: CustomCodeExecuteRequest) -> CustomCodeExecuteResponse:
+    start_time = time.time()
+    
+    # 1. Close any lingering figures
+    plt.close("all")
+    
+    # 2. Dataset resolution
+    dataset_name = request.dataset_name or "sales_marketing.csv"
+    try:
+        if request.custom_csv and request.custom_csv.strip():
+            default_df = pd.read_csv(io.StringIO(request.custom_csv))
+        else:
+            p = os.path.join(DATASET_DIR, dataset_name)
+            if os.path.exists(p):
+                default_df = pd.read_csv(p)
+            else:
+                default_df = pd.read_csv(os.path.join(DATASET_DIR, "sales_marketing.csv"))
+    except Exception:
+        default_df = pd.DataFrame()
+
+    original_read_csv = pd.read_csv
+
+    def patched_read_csv(filepath_or_buffer, *args, **kwargs):
+        if isinstance(filepath_or_buffer, str) and not os.path.isabs(filepath_or_buffer):
+            candidate = os.path.join(DATASET_DIR, filepath_or_buffer)
+            if os.path.exists(candidate):
+                return original_read_csv(candidate, *args, **kwargs)
+        return original_read_csv(filepath_or_buffer, *args, **kwargs)
+
+    # 3. Capture stdout & stderr
+    stdout_buf = io.StringIO()
+    stderr_buf = io.StringIO()
+    old_stdout = sys.stdout
+    old_stderr = sys.stderr
+
+    exec_globals = {
+        "__name__": "__main__",
+        "__doc__": None,
+        "pd": pd,
+        "np": np,
+        "plt": plt,
+        "matplotlib": matplotlib,
+        "df": default_df.copy(),
+        "LinearRegression": LinearRegression,
+        "DecisionTreeClassifier": DecisionTreeClassifier,
+        "RandomForestRegressor": RandomForestRegressor,
+        "RandomForestClassifier": RandomForestClassifier,
+        "LogisticRegression": LogisticRegression,
+        "StandardScaler": StandardScaler,
+        "PCA": PCA,
+        "KMeans": KMeans,
+        "train_test_split": train_test_split,
+        "r2_score": r2_score,
+        "mean_squared_error": mean_squared_error,
+        "mean_absolute_error": mean_absolute_error,
+        "accuracy_score": accuracy_score,
+        "f1_score": f1_score,
+        "confusion_matrix": confusion_matrix,
+    }
+
+    error_msg: Optional[str] = None
+    success = True
+
+    try:
+        pd.read_csv = patched_read_csv
+        sys.stdout = stdout_buf
+        sys.stderr = stderr_buf
+        exec(request.code, exec_globals)
+    except Exception as e:
+        success = False
+        error_msg = f"{type(e).__name__}: {str(e)}"
+        tb_lines = traceback.format_exc().splitlines()
+        clean_tb = "\n".join([line for line in tb_lines if "executor.py" not in line])
+        stderr_buf.write(f"\n{clean_tb}\n")
+    finally:
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
+        pd.read_csv = original_read_csv
+
+    # 4. Extract generated charts
+    charts_b64: list[str] = []
+    fig_nums = plt.get_fignums()
+    for num in fig_nums:
+        fig = plt.figure(num)
+        b64 = _fig_to_base64(fig)
+        charts_b64.append(b64)
+    plt.close("all")
+
+    primary_chart = charts_b64[-1] if charts_b64 else None
+
+    # 5. Extract preview if DataFrame exists
+    preview = None
+    final_df = exec_globals.get("df")
+    if isinstance(final_df, pd.DataFrame) and len(final_df) > 0:
+        preview = _make_data_preview(final_df, min(5, len(final_df)))
+
+    exec_time = round((time.time() - start_time) * 1000.0, 2)
+
+    return CustomCodeExecuteResponse(
+        success=success,
+        stdout=stdout_buf.getvalue().strip(),
+        stderr=stderr_buf.getvalue().strip(),
+        chart_base64=primary_chart,
+        charts_base64=charts_b64,
+        execution_time_ms=exec_time,
+        data_preview=preview,
+        error=error_msg,
+    )
+

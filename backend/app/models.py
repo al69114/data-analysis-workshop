@@ -101,3 +101,66 @@ class PresetUseCase(BaseModel):
     difficulty: Literal["Beginner", "Intermediate", "Advanced"]
     blocks: list[ProjectBlock]
     key_takeaway: str
+
+
+class CustomCodeExecuteRequest(BaseModel):
+    code: str
+    dataset_name: Optional[str] = "sales_marketing.csv"
+    custom_csv: Optional[str] = None
+
+
+class CustomCodeExecuteResponse(BaseModel):
+    success: bool
+    stdout: str = ""
+    stderr: str = ""
+    chart_base64: Optional[str] = None
+    charts_base64: list[str] = Field(default_factory=list)
+    execution_time_ms: float = 0.0
+    data_preview: Optional[DataPreview] = None
+    error: Optional[str] = None
+
+
+class CodeToVisualMapping(BaseModel):
+    code_snippet: str
+    visual_element: str
+    explanation: str
+
+
+class WorkshopStep(BaseModel):
+    id: str
+    stage: int
+    title: str
+    subtitle: str
+    objective: str
+    dataset_name: str
+    concept_summary: str
+    starter_code: str
+    solution_code: str
+    code_mappings: list[CodeToVisualMapping] = Field(default_factory=list)
+    key_takeaways: list[str] = Field(default_factory=list)
+    pro_tips: list[str] = Field(default_factory=list)
+
+
+class GuidedStep(BaseModel):
+    step_number: int
+    module_id: str
+    target_action: str
+    title: str
+    description: str
+    why_it_matters: str
+    expected_output: str
+    default_settings: dict[str, Any] = Field(default_factory=dict)
+    code_snippet: str
+
+
+class GuidedMission(BaseModel):
+    id: str
+    title: str
+    subtitle: str
+    category: str
+    difficulty: Literal["Beginner", "Intermediate", "Advanced"]
+    dataset_name: str
+    overview: str
+    steps: list[GuidedStep]
+
+
