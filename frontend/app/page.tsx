@@ -247,7 +247,7 @@ plt.show()
         title: "Inspect, Clean & Validate Records",
         description: "Run after loading the CSV and before summaries or charts. Check missing values, normalize text, remove exact duplicates, and set incomplete records aside for review.",
         badge: "Data Cleaning",
-        codeSnippet: RONALDO_CLEANING_CODE,
+        codeSnippet: `import pandas as pd\n\n${RONALDO_CLEANING_CODE}`,
         parametersNote: "The supplied CSV is already clean. Try the Messy Data Practice variation to see changes in the console. Keep raw_df and review_df so exclusions can be investigated.",
       },
       {
@@ -481,7 +481,7 @@ plt.show()
         title: "Label Axes, Rotate Ticks & Show",
         description: "Adds titles, grid lines, rotates season dates 60 degrees, and renders the visual.",
         badge: "Styling",
-        codeSnippet: `ax.set_title("Ronaldo Career Goals by Season")\nax.set_xlabel("Season")\nax.set_ylabel("Goals")\nplt.xticks(rotation=60, ha="right")\nax.grid(True, linestyle="--", alpha=0.5)\nax.legend()\nplt.tight_layout()\nplt.show()`,
+        codeSnippet: `import matplotlib.pyplot as plt\n\nax.set_title("Ronaldo Career Goals by Season")\nax.set_xlabel("Season")\nax.set_ylabel("Goals")\nplt.xticks(rotation=60, ha="right")\nax.grid(True, linestyle="--", alpha=0.5)\nax.legend()\nplt.tight_layout()\nplt.show()`,
         parametersNote: "plt.xticks(rotation=60) prevents crowded labels on the X axis.",
       },
     ],
@@ -623,6 +623,19 @@ print("R² Score (Variance Explained):", round(r2, 3))
 print("Root Mean Squared Error (RMSE):", round(rmse, 2), "goals")
 print(f"Fitted Equation: Goals = ({round(slope, 2)} × Appearances) + ({round(intercept, 2)})")
 
+# Show the actual numbers plugged in to get R² and RMSE (same residuals, two summaries)
+ss_res = np.sum((y - y_pred) ** 2)
+ss_tot = np.sum((y - y.mean()) ** 2)
+mse = ss_res / len(y)
+
+print("")
+print("--- How R² and RMSE were calculated ---")
+print(f"SS_res (model's squared error):    {ss_res:,.2f}")
+print(f"SS_tot (baseline's squared error): {ss_tot:,.2f}")
+print(f"R²   = 1 - (SS_res / SS_tot) = 1 - ({ss_res:,.2f} / {ss_tot:,.2f}) = {r2:.3f}")
+print(f"MSE  = SS_res / n = {ss_res:,.2f} / {len(y)} = {mse:.2f}")
+print(f"RMSE = sqrt(MSE)  = sqrt({mse:.2f}) = {rmse:.2f}")
+
 # 5. Predict for a hypothetical 50-game season
 hypothetical_apps = 50
 predicted_goals = model.predict([[hypothetical_apps]])[0]
@@ -675,40 +688,58 @@ plt.show()
 `,
     blocks: [
       {
-        id: "b5-data",
+        id: "b5-load",
         blockNumber: "Block 3.1",
+        title: "Load the Season Dataset",
+        description: "Reads the 23-season Ronaldo CSV into a DataFrame — the raw table everything else in this step is built from.",
+        badge: "Ingestion",
+        codeSnippet: `import pandas as pd\n\ndf = pd.read_csv("ronaldo_all_seasons.csv")`,
+        parametersNote: "Change the filename to point the same pipeline at a different CSV.",
+      },
+      {
+        id: "b5-data",
+        blockNumber: "Block 3.2",
         title: "Define Feature Matrix (X) & Target (y)",
-        description: "Extracts appearances as the 2D feature matrix X and goals as 1D target vector y.",
+        description: "Splits the DataFrame into what the model reads (X) and what it's trying to learn (y).",
         badge: "Features",
         codeSnippet: `X = df[["appearances"]].values\ny = df["goals"].values`,
-        parametersNote: "Double brackets [['appearances']] ensures X is a 2D matrix required by scikit-learn.",
+        parametersNote: "Double brackets [[\"appearances\"]] keep X 2D (rows × features) — scikit-learn requires that shape even with one feature.",
       },
       {
         id: "b5-train",
-        blockNumber: "Block 3.2",
-        title: "Fit LinearRegression & Compute R²",
-        description: "Trains the model and evaluates goodness-of-fit R² and RMSE.",
+        blockNumber: "Block 3.3",
+        title: "Train the Regression Model",
+        description: "Fits the least-squares line through all 23 (appearances, goals) points — the actual training step.",
         badge: "Training",
-        codeSnippet: `from sklearn.linear_model import LinearRegression\nfrom sklearn.metrics import r2_score\n\nmodel = LinearRegression().fit(X, y)\ny_pred = model.predict(X)\nprint("R² Score:", round(r2_score(y, y_pred), 3))`,
-        parametersNote: "R² measures the percentage of variance in goals explained by matches played.",
+        codeSnippet: `from sklearn.linear_model import LinearRegression\n\nmodel = LinearRegression(fit_intercept=True)\nmodel.fit(X, y)`,
+        parametersNote: "fit_intercept=True lets the line also solve for a constant term instead of being forced through the origin.",
+      },
+      {
+        id: "b5-evaluate",
+        blockNumber: "Block 3.4",
+        title: "Evaluate Fit: R² & RMSE",
+        description: "Re-runs the model on its own training data to score how well the line fits: R² = 0.327 (about a third of season-to-season variance explained), RMSE = 13.76 goals (typical prediction error).",
+        badge: "Evaluation",
+        codeSnippet: `import numpy as np\nfrom sklearn.metrics import r2_score, mean_squared_error\n\ny_pred = model.predict(X)\nr2 = r2_score(y, y_pred)\nrmse = np.sqrt(mean_squared_error(y, y_pred))\n\n# Show the actual numbers plugged in\nss_res = np.sum((y - y_pred) ** 2)\nss_tot = np.sum((y - y.mean()) ** 2)\nprint(f"R² = 1 - ({ss_res:.2f} / {ss_tot:.2f}) = {r2:.3f}")\nprint(f"RMSE = sqrt({ss_res:.2f} / {len(y)}) = {rmse:.2f}")`,
+        parametersNote: "R² is unitless (0–1); RMSE is in goals, which reads more intuitively out loud.",
       },
       {
         id: "b5-predict",
-        blockNumber: "Block 3.3",
-        title: "Predict Hypothetical Scenario",
-        description: "Asks the trained model to forecast goals for a custom 50-game season.",
+        blockNumber: "Block 3.5",
+        title: "Predict a Hypothetical Season",
+        description: "The actual payoff: asks the trained model what a 50-appearance season should produce. Real output: 40.5 predicted goals.",
         badge: "Inference",
-        codeSnippet: `pred_goals = model.predict([[50]])[0]\nprint(f"Predicted Goals in 50 matches: {round(pred_goals, 1)}")`,
-        parametersNote: "Change [[50]] to [[40]] or [[55]] to test other hypothetical seasons.",
+        codeSnippet: `hypothetical_apps = 50\npredicted_goals = model.predict([[hypothetical_apps]])[0]`,
+        parametersNote: "Change 50 to 35, 45, or 55 to test other hypothetical seasons.",
       },
       {
         id: "b5-plot",
-        blockNumber: "Block 3.4",
-        title: "Overlay Regression Fit on Scatter Points",
-        description: "Plots actual season dots alongside the fitted red linear trendline.",
-        badge: "Model Fit",
-        codeSnippet: `ax.scatter(df["appearances"], df["goals"], color="#0f766e", s=80, label="Actual")\nsort_idx = np.argsort(df["appearances"].values)\nax.plot(df["appearances"].values[sort_idx], y_pred[sort_idx], color="#e11d48", label="Fitted Model")\nax.legend()\nplt.show()`,
-        parametersNote: "Outliers above the line represent peak hyper-efficient campaigns.",
+        blockNumber: "Block 3.6",
+        title: "Plot Fit + Career-High Callout",
+        description: "Draws the real points and the fitted line together, then adds an arrow pointing at his actual record season — found dynamically via idxmax(), never hardcoded.",
+        badge: "Visualization",
+        codeSnippet: `import numpy as np\n\nax.scatter(df["appearances"], df["goals"], s=80, alpha=0.85, label="Actual Seasons")\nsort_idx = np.argsort(df["appearances"].values)\nax.plot(df["appearances"].values[sort_idx], y_pred[sort_idx], linewidth=2.6, label=f"Regression Fit (R² = {r2:.2f})")\n\npeak_idx = df["goals"].idxmax()\npeak = df.loc[peak_idx]\nax.annotate(f"Career High: {int(peak['goals'])} Goals", xy=(peak["appearances"], peak["goals"]), arrowprops=dict(arrowstyle="->"))`,
+        parametersNote: "Points far above the line are seasons the model underestimates — direct visual evidence of the 0.327 R².",
       },
     ],
     parameters: [
@@ -725,6 +756,21 @@ plt.show()
         options: "True, False",
         description: "Whether to calculate the intercept or force the line through origin (0, 0).",
         codeSnippet: `model = LinearRegression(fit_intercept=False)`,
+      },
+      {
+        param: "How R² & RMSE Are Derived",
+        currentValue: "R² = 0.327, RMSE = 13.76 goals",
+        options: "Same 23 residuals, two different summaries",
+        description: "Both come from the model's residuals (actual goals − predicted goals) across all 23 seasons. R² compares the model's total squared error against a naive baseline that always guesses the average; RMSE averages those squared errors and square-roots back into real goal units.",
+        codeSnippet: `slope     = Σ(x-x̄)(y-ȳ) / Σ(x-x̄)²   → 1.44
+intercept = ȳ - slope·x̄               → -31.65
+
+SS_res = Σ(actual - predicted)²        → 4353.22
+SS_tot = Σ(actual - mean)²             → 6465.74
+R²     = 1 - (SS_res / SS_tot)         → 0.327
+
+MSE  = SS_res / n                      → 189.27
+RMSE = √MSE                            → 13.76 goals`,
       },
     ],
     variants: [
