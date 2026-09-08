@@ -109,8 +109,11 @@ type StepDefinition = {
   proTips: string[];
 };
 
-const PROXY_API_BASE = "/api/backend";
-const DIRECT_API_BASE = "http://localhost:8000";
+// Set NEXT_PUBLIC_BACKEND_URL in the Vercel project's Environment Variables to
+// the deployed backend's URL (e.g. https://your-backend-project.vercel.app).
+// Must be NEXT_PUBLIC_-prefixed since this runs in the browser. Falls back to
+// localhost for local development only.
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 // Human-readable title-case label for each swappable metric, used by the
 // "Quick Tweak: Metric" buttons to keep chart titles/axis labels in sync
@@ -841,31 +844,23 @@ export default function Home() {
     let lastError: any = null;
     let data: CustomCodeExecuteResponse | null = null;
 
-    const endpoints = [
-      `${PROXY_API_BASE}/execute-code`,
-      `${DIRECT_API_BASE}/execute-code`,
-    ];
+    try {
+      const res = await fetch(`${BACKEND_URL}/execute-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dataset_name: selectedDataset,
+          code: codeToRun,
+        }),
+      });
 
-    for (const url of endpoints) {
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            dataset_name: selectedDataset,
-            code: codeToRun,
-          }),
-        });
-
-        if (res.ok) {
-          data = await res.json();
-          break;
-        } else {
-          lastError = new Error(`HTTP ${res.status} from ${url}`);
-        }
-      } catch (err: any) {
-        lastError = err;
+      if (res.ok) {
+        data = await res.json();
+      } else {
+        lastError = new Error(`HTTP ${res.status} from ${BACKEND_URL}`);
       }
+    } catch (err: any) {
+      lastError = err;
     }
 
     if (data) {
@@ -876,7 +871,7 @@ export default function Home() {
       setCodeResult({
         success: false,
         stdout: "",
-        stderr: lastError?.message || "Could not connect to Python execution backend (tried /api/backend and port 8000). Please ensure the backend is running.",
+        stderr: lastError?.message || `Could not connect to Python execution backend at ${BACKEND_URL}. Please ensure the backend is running and reachable.`,
         charts_base64: [],
         execution_time_ms: 0,
       });
