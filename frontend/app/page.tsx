@@ -1023,28 +1023,6 @@ export default function Home() {
             A focused 3-step journey: from cleaning and charting real career data to training a Scikit-Learn regression model and predicting future seasons.
           </p>
         </div>
-
-        {/* Primary Run Code Button */}
-        <div className="header-right-meta">
-          <button
-            type="button"
-            className="run-w1-code-btn primary-header-btn"
-            onClick={() => runPythonCode()}
-            disabled={executingCode}
-          >
-            {executingCode ? (
-              <>
-                <RefreshCw size={15} className="spin-icon" />
-                <span>Running...</span>
-              </>
-            ) : (
-              <>
-                <Play size={15} />
-                <span>Run Code (⌘ + ↵)</span>
-              </>
-            )}
-          </button>
-        </div>
       </header>
 
       {/* ========================================================================= */}
