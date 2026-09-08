@@ -9,7 +9,6 @@ import {
   BarChart3,
   BookOpen,
   Check,
-  CheckCircle2,
   ChevronRight,
   Code2,
   Copy,
@@ -1507,23 +1506,6 @@ export default function Home() {
               {/* TAB 1: VISUAL MATPLOTLIB CHART + LIVE CONSOLE DRAWER */}
               {activeOutputTab === "visual" && (
                 <div className="visual-tab-content">
-                  {/* Execution Status Bar */}
-                  {codeResult && (
-                    <div className={`execution-status-badge ${codeResult.success ? "success" : "error"}`}>
-                      {codeResult.success ? (
-                        <>
-                          <CheckCircle2 size={14} />
-                          <span>Code executed successfully in {codeResult.execution_time_ms}ms · Output ready</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle size={14} />
-                          <span>Execution Error: See traceback below</span>
-                        </>
-                      )}
-                    </div>
-                  )}
-
                   {/* Error Box if any */}
                   {codeResult && !codeResult.success && (
                     <div className="error-alert-box">
