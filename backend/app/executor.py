@@ -1,8 +1,11 @@
 import base64
 import io
 import os
+import tempfile
 import time
 from typing import Any, Optional
+
+os.environ.setdefault("MPLCONFIGDIR", os.path.join(tempfile.gettempdir(), "data-analysis-workshop-mpl"))
 
 import matplotlib
 matplotlib.use("Agg")
@@ -68,7 +71,7 @@ def _fig_to_base64(fig: plt.Figure) -> str:
 def _make_data_preview(df: pd.DataFrame, n_rows: int = 5) -> DataPreview:
     sample_df = df.head(n_rows).copy()
     for col in sample_df.columns:
-        if sample_df[col].dtype == "object":
+        if not pd.api.types.is_numeric_dtype(sample_df[col]):
             sample_df[col] = sample_df[col].fillna("").astype(str)
         else:
             sample_df[col] = sample_df[col].apply(lambda x: round(float(x), 3) if pd.notnull(x) else None)
@@ -2141,7 +2144,12 @@ def execute_custom_python_code(request: CustomCodeExecuteRequest) -> CustomCodeE
     original_read_csv = pd.read_csv
 
     def patched_read_csv(filepath_or_buffer, *args, **kwargs):
+        if request.custom_csv and request.custom_csv.strip() and isinstance(filepath_or_buffer, str):
+            return original_read_csv(io.StringIO(request.custom_csv), *args, **kwargs)
         if isinstance(filepath_or_buffer, str) and not os.path.isabs(filepath_or_buffer):
+            selected_candidate = os.path.join(DATASET_DIR, dataset_name)
+            if os.path.exists(selected_candidate):
+                return original_read_csv(selected_candidate, *args, **kwargs)
             candidate = os.path.join(DATASET_DIR, filepath_or_buffer)
             if os.path.exists(candidate):
                 return original_read_csv(candidate, *args, **kwargs)
@@ -2226,4 +2234,3 @@ def execute_custom_python_code(request: CustomCodeExecuteRequest) -> CustomCodeE
         data_preview=preview,
         error=error_msg,
     )
-

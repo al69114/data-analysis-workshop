@@ -67,6 +67,36 @@ class DataPreview(BaseModel):
     total_columns: int
 
 
+class ColumnProfile(BaseModel):
+    name: str
+    inferred_type: Literal["numeric", "categorical", "datetime", "text"]
+    missing_values: int = 0
+    unique_values: int = 0
+
+
+class AnalysisSuggestion(BaseModel):
+    id: str
+    title: str
+    chart_type: str
+    difficulty: Literal["Beginner", "Intermediate", "Advanced"]
+    why: str
+    recommended_blocks: list[ProjectBlock] = Field(default_factory=list)
+    steps: list[str] = Field(default_factory=list)
+
+
+class DatasetProfileRequest(BaseModel):
+    dataset_name: str = "ronaldo_all_seasons.csv"
+    custom_csv: Optional[str] = None
+
+
+class DatasetProfileResponse(BaseModel):
+    dataset_name: str
+    preview: DataPreview
+    columns: list[ColumnProfile]
+    suggestions: list[AnalysisSuggestion]
+    notes: list[str] = Field(default_factory=list)
+
+
 class BlockExecutionResult(BaseModel):
     block_id: str
     module_id: str
@@ -162,5 +192,4 @@ class GuidedMission(BaseModel):
     dataset_name: str
     overview: str
     steps: list[GuidedStep]
-
 

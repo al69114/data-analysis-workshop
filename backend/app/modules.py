@@ -32,6 +32,7 @@ MODULES: list[ModuleDefinition] = [
                     ModuleOptionChoice(value="sales_marketing.csv", label="📈 Sales & Marketing Spend (Regression / EDA)"),
                     ModuleOptionChoice(value="customer_churn.csv", label="🎯 Customer Churn & Retention (Classification)"),
                     ModuleOptionChoice(value="housing_prices.csv", label="🏡 Real Estate & Housing Prices (Regression / Multi-feature)"),
+                    ModuleOptionChoice(value="ronaldo_all_seasons.csv", label="⚽ Ronaldo All Seasons (Sports EDA)"),
                     ModuleOptionChoice(value="sales.csv", label="📊 Basic Sales Records"),
                 ],
             ),
@@ -2320,5 +2321,4 @@ PRESET_USE_CASES.extend([
         ],
     ),
 ])
-
 

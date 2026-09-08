@@ -4,6 +4,10 @@ An interactive, visual workbench for learning data science, statistical analysis
 
 Learners can assemble data pipelines with **Pandas**, **NumPy**, **Matplotlib**, and **Scikit-Learn**, tune hyperparameters in real time, execute code with live visual chart rendering and model scorecards, and export clean Python code.
 
+The default first-run dataset is now `ronaldo_all_seasons.csv`, a compact season-level sports analytics CSV for beginner EDA. Learners can also upload any CSV in the UI; the Python backend profiles the columns, previews rows, and recommends efficient chart and analysis workflows from the detected schema.
+
+The Ronaldo studio's first step follows **Load → Inspect → Clean → Visualize**. It checks missing values and data types, normalizes labels, removes exact duplicates, sets incomplete records aside for review, validates counts, and recalculates derived metrics before plotting. The **Messy Data Practice** variation introduces errors into an in-memory copy and charts the cleaning results. The supplied CSV stays unchanged, and each lesson independently reloads it. Missing sports statistics are treated as unknown rather than filled with zero or an average.
+
 ---
 
 ## 🌟 Two Interactive Workshop Studios
@@ -47,7 +51,8 @@ A modular drag-and-drop workbench for assembling multi-step pipelines with 1-cli
   - `app/executor.py`: Safe pipeline and custom code execution engine supporting `pandas`, `numpy`, `matplotlib`, and `scikit-learn` (`LinearRegression`, `RandomForestRegressor`, `DecisionTreeClassifier`, `RandomForestClassifier`, `LogisticRegression`, `StandardScaler`, `PCA`, `KMeans`).
   - `app/codegen.py`: Python code generation engine producing standalone scripts with comments and learner tips.
   - `app/modules.py`: Definitions for all 22 modules, 5 Guided Missions, and 6 preset use cases.
-  - `app/datasets/`: Built-in sample datasets (`sales_marketing.csv`, `customer_churn.csv`, `housing_prices.csv`).
+  - `app/recommender.py`: Dataset profiling and chart/workflow suggestion engine for built-in and uploaded CSVs.
+  - `app/datasets/`: Built-in sample datasets (`ronaldo_all_seasons.csv`, `sales_marketing.csv`, `customer_churn.csv`, `housing_prices.csv`).
 - **`frontend/` (Next.js 16 + React 19 + TypeScript + Lucide Icons)**:
   - Responsive 3-panel workspace, split-screen code editor, direct drag-and-drop drop zones, interactive stepper beacon, and parameter manipulation studio.
 
@@ -105,4 +110,3 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | **Scikit-Learn**| **Logistic Regression** | Binary probabilistic classification | Sigmoid classification metrics |
 | **Scikit-Learn**| **K-Means Clustering** | Unsupervised spatial segmentation | 2D Cluster scatter plot with centroids |
 | **Scikit-Learn**| **PCA Reduction** | 2D orthogonal dimensionality compression | 2D projection + % variance explained |
-

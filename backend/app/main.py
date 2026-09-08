@@ -6,6 +6,8 @@ from app.executor import execute_custom_python_code, execute_pipeline
 from app.models import (
     CustomCodeExecuteRequest,
     CustomCodeExecuteResponse,
+    DatasetProfileRequest,
+    DatasetProfileResponse,
     ExecuteRequest,
     ExecuteResponse,
     GenerateRequest,
@@ -16,6 +18,7 @@ from app.models import (
     WorkshopStep,
 )
 from app.modules import GUIDED_MISSIONS, MATPLOTLIB_WORKSHOP_STEPS, MODULES, PRESET_USE_CASES
+from app.recommender import profile_dataset
 
 
 app = FastAPI(
@@ -58,6 +61,11 @@ def list_guided_missions() -> list[GuidedMission]:
     return GUIDED_MISSIONS
 
 
+@app.post("/datasets/profile", response_model=DatasetProfileResponse)
+def dataset_profile(request: DatasetProfileRequest) -> DatasetProfileResponse:
+    return profile_dataset(request)
+
+
 
 @app.post("/generate", response_model=GenerateResponse)
 def generate_code(request: GenerateRequest) -> GenerateResponse:
@@ -72,4 +80,3 @@ def execute(request: ExecuteRequest) -> ExecuteResponse:
 @app.post("/execute-code", response_model=CustomCodeExecuteResponse)
 def execute_code(request: CustomCodeExecuteRequest) -> CustomCodeExecuteResponse:
     return execute_custom_python_code(request)
-
