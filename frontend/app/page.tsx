@@ -109,11 +109,12 @@ type StepDefinition = {
   proTips: string[];
 };
 
-// Set NEXT_PUBLIC_BACKEND_URL in the Vercel project's Environment Variables to
-// the deployed backend's URL (e.g. https://your-backend-project.vercel.app).
-// Must be NEXT_PUBLIC_-prefixed since this runs in the browser. Falls back to
-// localhost for local development only.
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+// Defaults to the deployed backend so the app works out of the box in
+// production even if the env var below isn't set on Vercel. Set
+// NEXT_PUBLIC_BACKEND_URL (must be NEXT_PUBLIC_-prefixed to reach the
+// browser) only if you need to point at a different backend, e.g.
+// http://localhost:8000 for local development against a local server.
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://ronaldo-workshop-backend.vercel.app";
 
 // Human-readable title-case label for each swappable metric, used by the
 // "Quick Tweak: Metric" buttons to keep chart titles/axis labels in sync
